@@ -1,0 +1,115 @@
+From aeed01a26b8e9ec4384cc14c47fc30ef36bcbd78 Mon Sep 17 00:00:00 2001
+From: jaydeep-shingala <shingalajaydeep1508@gmail.com>
+Date: Fri, 28 Apr 2023 12:01:44 +0530
+Subject: [PATCH] llvm-mlir added and optimisation pass added
+
+---
+ mlir/include/mlir/Dialect/Affine/Passes.h     |  3 ++
+ mlir/include/mlir/Dialect/Affine/Passes.td    |  7 +++
+ .../AffineLoopOptTransformations.cpp          | 49 +++++++++++++++++++
+ .../Dialect/Affine/Transforms/CMakeLists.txt  |  1 +
+ 4 files changed, 60 insertions(+)
+ create mode 100644 mlir/lib/Dialect/Affine/Transforms/AffineLoopOptTransformations.cpp
+
+diff --git a/mlir/include/mlir/Dialect/Affine/Passes.h b/mlir/include/mlir/Dialect/Affine/Passes.h
+index 9d253fb7660d..a2ef6d65e02d 100644
+--- a/mlir/include/mlir/Dialect/Affine/Passes.h
++++ b/mlir/include/mlir/Dialect/Affine/Passes.h
+@@ -74,6 +74,9 @@ createAffineScalarReplacementPass();
+ /// bounds into a single loop.
+ std::unique_ptr<OperationPass<func::FuncOp>> createLoopCoalescingPass();
+ 
++std::unique_ptr<OperationPass<func::FuncOp>>
++createAffineLoopOptTransformationsPass();
++
+ /// Creates a loop fusion pass which fuses affine loop nests at the top-level of
+ /// the operation the pass is created on according to the type of fusion
+ /// specified in `fusionMode`. Buffers of size less than or equal to
+diff --git a/mlir/include/mlir/Dialect/Affine/Passes.td b/mlir/include/mlir/Dialect/Affine/Passes.td
+index b3efdc5872b3..bd6aa963b3b3 100644
+--- a/mlir/include/mlir/Dialect/Affine/Passes.td
++++ b/mlir/include/mlir/Dialect/Affine/Passes.td
+@@ -396,6 +396,13 @@ def LoopCoalescing : Pass<"affine-loop-coalescing", "func::FuncOp"> {
+   let dependentDialects = ["arith::ArithDialect"];
+ }
+ 
++def AffineLoopOptTransformations : Pass<"affine-loop-opt-transformations", "func::FuncOp"> {
++  let summary = "affine loop transformations for optimisation purposes that includes loop transformations loop fusion and loop tilings "
++                "loop";
++  let constructor = "mlir::createAffineLoopOptTransformationsPass()";
++}
++
++
+ def SimplifyAffineStructures : Pass<"affine-simplify-structures", "func::FuncOp"> {
+   let summary = "Simplify affine expressions in maps/sets and normalize "
+                 "memrefs";
+diff --git a/mlir/lib/Dialect/Affine/Transforms/AffineLoopOptTransformations.cpp b/mlir/lib/Dialect/Affine/Transforms/AffineLoopOptTransformations.cpp
+new file mode 100644
+index 000000000000..be06a31d4988
+--- /dev/null
++++ b/mlir/lib/Dialect/Affine/Transforms/AffineLoopOptTransformations.cpp
+@@ -0,0 +1,49 @@
++#include "mlir/Dialect/Affine/Passes.h"
++
++#include "mlir/Dialect/Affine/IR/AffineOps.h"
++#include "mlir/Dialect/Affine/LoopUtils.h"
++#include "mlir/Dialect/Arith/IR/Arith.h"
++#include "mlir/Dialect/Func/IR/FuncOps.h"
++#include "mlir/Dialect/SCF/IR/SCF.h"
++#include "mlir/Dialect/SCF/Utils/Utils.h"
++#include "mlir/Transforms/Passes.h"
++#include "mlir/Transforms/RegionUtils.h"
++#include "llvm/Support/Debug.h"
++
++#include "mlir/Pass/Pass.h"
++#include "mlir/Pass/PassManager.h"
++#include "mlir/Pass/PassRegistry.h"
++#include "mlir/Transforms/Passes.h"
++
++namespace mlir {
++#define GEN_PASS_DEF_AFFINELOOPOPTTRANSFORMATIONS
++#include "mlir/Dialect/Affine/Passes.h.inc"
++} // namespace mlir
++
++#define PASS_NAME "affine-loop-opt-transformations"
++#define DEBUG_TYPE PASS_NAME
++
++using namespace mlir;
++
++namespace {
++struct AffineLoopOptTransformationsPass
++    : public impl::AffineLoopOptTransformationsBase<
++          AffineLoopOptTransformationsPass> {
++
++  void runOnOperation() override {
++    func::FuncOp func = getOperation();
++    PassManager newpasses(getOperation().getContext());
++    newpasses.addPass(createLoopFusionPass());
++    newpasses.addPass(createLoopTilingPass());
++    newpasses.run(getOperation());
++    // llvm::errs() << "#####################running pass
++    // done#######################";
++  }
++};
++
++} // namespace
++
++std::unique_ptr<OperationPass<func::FuncOp>>
++mlir::createAffineLoopOptTransformationsPass() {
++  return std::make_unique<AffineLoopOptTransformationsPass>();
++}
+diff --git a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
+index 60d14a373348..62c19b041f71 100644
+--- a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
++++ b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
+@@ -15,6 +15,7 @@ add_mlir_dialect_library(MLIRAffineTransforms
+   ReifyValueBounds.cpp
+   SuperVectorize.cpp
+   SimplifyAffineStructures.cpp
++  AffineLoopOptTransformations.cpp
+ 
+   ADDITIONAL_HEADER_DIRS
+   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
+-- 
+2.34.1
+

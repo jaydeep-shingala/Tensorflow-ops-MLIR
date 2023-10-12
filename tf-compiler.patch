@@ -1,0 +1,25 @@
+From dbab2f67a7f21cf9add6ad689457b4d8a71c9221 Mon Sep 17 00:00:00 2001
+From: jaydeep-shingala <shingalajaydeep1508@gmail.com>
+Date: Fri, 28 Apr 2023 11:51:42 +0530
+Subject: [PATCH] tf_compiler file added with pipeline created
+
+---
+ tf_compiler.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tf_compiler.py b/tf_compiler.py
+index c5bf8c7..7c269b3 100644
+--- a/tf_compiler.py
++++ b/tf_compiler.py
+@@ -164,7 +164,7 @@ class Workload(Model):
+             tf_to_affine_command = 'tensorflow/bazel-bin/tensorflow/compiler/mlir/tf-opt tf.mlir -xla-legalize-tf -hlo-legalize-to-linalg -linalg-bufferize -func-bufferize -buffer-results-to-out-params -canonicalize -convert-linalg-to-affine-loops -canonicalize > tf_affine.mlir'
+             os.system(tf_to_affine_command)
+             
+-            affine_to_llvm = "llvm_mlir_install/bin/mlir-opt tf_affine.mlir -lower-affine -convert-scf-to-cf -memref-expand -finalize-memref-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts"
++            affine_to_llvm = "llvm_mlir_install/bin/mlir-opt tf_affine.mlir -affine-loop-opt-transformations -lower-affine -convert-scf-to-cf -memref-expand -finalize-memref-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts"
+             llvm_code = subprocess.check_output(affine_to_llvm, shell=True)
+             # print(llvm_code)
+             
+-- 
+2.34.1
+
